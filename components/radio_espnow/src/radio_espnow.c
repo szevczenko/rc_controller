@@ -18,6 +18,7 @@ static radio_rx_callback_t s_rx_cb;
 static uint8_t             s_peer_mac[6];
 static bool                s_bound;
 static SemaphoreHandle_t   s_bind_sem;
+static uint8_t             s_bind_remote_mac[6]; /* captured during bind */
 
 /* ── ESP-NOW callbacks ──────────────────────────────────────────────────── */
 
@@ -26,6 +27,9 @@ static void espnow_recv_cb(const esp_now_recv_info_t *info, const uint8_t *data,
     if (len <= 0) {
         return;
     }
+    /* Capture sender MAC for binding (always update — bind_rx_cb checks it). */
+    memcpy(s_bind_remote_mac, info->src_addr, 6);
+
     if (s_rx_cb) {
         s_rx_cb(data, (size_t)len, info->rx_ctrl->rssi);
     }
@@ -125,12 +129,12 @@ static void bind_rx_cb(const uint8_t *data, size_t len, int rssi)
     if (data[0] == BIND_MAGIC_TX && !s_bound) {
         /* RX side received bind request from TX. */
         if (s_bind_sem) {
-            xSemaphoreGiveFromISR(s_bind_sem, NULL);
+            xSemaphoreGive(s_bind_sem);
         }
     } else if (data[0] == BIND_MAGIC_RX && !s_bound) {
         /* TX side received bind response from RX. */
         if (s_bind_sem) {
-            xSemaphoreGiveFromISR(s_bind_sem, NULL);
+            xSemaphoreGive(s_bind_sem);
         }
     }
 }
@@ -157,9 +161,19 @@ esp_err_t radio_espnow_start_bind(uint32_t timeout_ms)
 
     esp_err_t err = ESP_ERR_TIMEOUT;
     if (xSemaphoreTake(s_bind_sem, pdMS_TO_TICKS(timeout_ms)) == pdTRUE) {
+        /* Register the responder's MAC as our peer. */
+        memcpy(s_peer_mac, s_bind_remote_mac, 6);
+        esp_now_peer_info_t peer = {0};
+        memcpy(peer.peer_addr, s_peer_mac, 6);
+        peer.channel = ESPNOW_CHANNEL;
+        peer.ifidx   = ESP_IF_WIFI_STA;
+        if (!esp_now_is_peer_exist(s_peer_mac)) {
+            esp_now_add_peer(&peer);
+        }
+        radio_espnow_save_peer(s_peer_mac);
         s_bound = true;
         err = ESP_OK;
-        ESP_LOGI(TAG, "TX: bind successful");
+        ESP_LOGI(TAG, "TX: bind successful, peer " MACSTR, MAC2STR(s_peer_mac));
     }
 
     s_rx_cb = prev_cb;
@@ -178,13 +192,24 @@ esp_err_t radio_espnow_wait_bind(uint32_t timeout_ms)
 
     esp_err_t err = ESP_ERR_TIMEOUT;
     if (xSemaphoreTake(s_bind_sem, pdMS_TO_TICKS(timeout_ms)) == pdTRUE) {
-        /* Respond to TX broadcast. */
-        uint8_t broadcast[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+        /* Register the TX's MAC as our peer and respond. */
+        memcpy(s_peer_mac, s_bind_remote_mac, 6);
+        esp_now_peer_info_t peer = {0};
+        memcpy(peer.peer_addr, s_peer_mac, 6);
+        peer.channel = ESPNOW_CHANNEL;
+        peer.ifidx   = ESP_IF_WIFI_STA;
+        if (!esp_now_is_peer_exist(s_peer_mac)) {
+            esp_now_add_peer(&peer);
+        }
+
+        /* Send bind response to the TX (unicast). */
         uint8_t bind_pkt = BIND_MAGIC_RX;
-        esp_now_send(broadcast, &bind_pkt, 1);
+        esp_now_send(s_peer_mac, &bind_pkt, 1);
+
+        radio_espnow_save_peer(s_peer_mac);
         s_bound = true;
         err = ESP_OK;
-        ESP_LOGI(TAG, "RX: bind response sent");
+        ESP_LOGI(TAG, "RX: bind response sent to " MACSTR, MAC2STR(s_peer_mac));
     }
 
     s_rx_cb = prev_cb;

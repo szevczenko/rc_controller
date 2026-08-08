@@ -31,12 +31,21 @@ esp_err_t output_pwm_init(const output_pwm_config_t *config, size_t count)
     memcpy(s_ctx.cfg, config, count * sizeof(output_pwm_config_t));
     s_ctx.count = count;
 
-    /* Use first channel's freq for the shared timer (all channels same freq). */
+    /* All channels must use the same frequency (single shared timer). */
+    uint32_t freq = config[0].freq_hz;
+    for (size_t i = 1; i < count; i++) {
+        if (config[i].freq_hz != freq) {
+            ESP_LOGE(TAG, "all channels must share freq, ch[%zu]=%lu != %lu",
+                     i, (unsigned long)config[i].freq_hz, (unsigned long)freq);
+            return ESP_ERR_INVALID_ARG;
+        }
+    }
+
     ledc_timer_config_t timer = {
         .speed_mode      = LEDC_MODE,
         .duty_resolution = LEDC_RESOLUTION,
         .timer_num       = LEDC_TIMER,
-        .freq_hz         = config[0].freq_hz,
+        .freq_hz         = freq,
         .clk_cfg         = LEDC_AUTO_CLK,
     };
     esp_err_t err = ledc_timer_config(&timer);
@@ -51,7 +60,7 @@ esp_err_t output_pwm_init(const output_pwm_config_t *config, size_t count)
             .speed_mode = LEDC_MODE,
             .channel    = (ledc_channel_t)i,
             .timer_sel  = LEDC_TIMER,
-            .duty       = us_to_ticks(config[i].min_us, config[i].freq_hz),
+            .duty       = us_to_ticks(config[i].min_us, freq),
             .hpoint     = 0,
         };
         err = ledc_channel_config(&ch);

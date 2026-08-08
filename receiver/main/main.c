@@ -34,8 +34,12 @@ static void radio_rx_cb(const uint8_t *data, size_t len, int rssi)
     }
 
     rc_seq_result_t seq_res = rc_protocol_check_sequence(pkt.sequence, &s_last_seq);
-    bool lost = (seq_res != RC_SEQ_OK);
+    bool lost = (seq_res == RC_SEQ_GAP);
     rc_link_stats_update(&s_stats, rssi, lost, pkt.sequence);
+
+    if (seq_res == RC_SEQ_REPLAY) {
+        return; /* discard stale packet */
+    }
 
     uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000);
     rc_core_packet_received(now_ms);
@@ -85,9 +89,10 @@ void app_main(void)
 
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        nvs_flash_erase();
-        nvs_flash_init();
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
     }
+    ESP_ERROR_CHECK(err);
 
     /* PWM: ESC (CH0) + servo (CH1) at 50 Hz, 1000–2000 µs */
     output_pwm_config_t pwm_cfg[] = {
@@ -114,13 +119,19 @@ void app_main(void)
     }
 
     /* Uptime counter + failsafe tick at 10 Hz */
+    bool failsafe_active = false;
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(100));
         s_uptime_ms += 100;
         uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000);
         rc_core_tick(now_ms);
         if (rc_core_get_link_state() == RC_STATE_FAILSAFE) {
-            failsafe_apply();
+            if (!failsafe_active) {
+                failsafe_apply();
+                failsafe_active = true;
+            }
+        } else {
+            failsafe_active = false;
         }
     }
 }

@@ -57,16 +57,11 @@ void test_loopback_set_channel_ok(void)
 
 void test_send_before_init_fails(void)
 {
-    /* Re-init with NULL to clear driver state */
-    const uint8_t b = 0;
-    /* Call internal send before any valid init — driver pointer from previous
-     * test is still set; use a fresh approach: init with loopback then check
-     * that send with NULL driver would fail if we had reset it.
-     * Instead, verify that passing NULL driver to radio_init returns error. */
+    /* radio_send should return ESP_ERR_INVALID_STATE when no driver is set. */
+    const uint8_t b = 0xAA;
+    TEST_ASSERT_EQUAL(ESP_ERR_INVALID_STATE, radio_send(&b, 1));
+    /* Also verify NULL driver is rejected. */
     TEST_ASSERT_EQUAL(ESP_ERR_INVALID_ARG, radio_init(NULL, test_rx_cb));
-    /* After failed init, s_driver is unchanged (still loopback), so just
-     * verify the invalid-arg path was reached. */
-    (void)b;
 }
 
 void test_loopback_multiple_sends(void)
@@ -93,10 +88,10 @@ void test_loopback_driver_name(void)
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_send_before_init_fails);
     RUN_TEST(test_loopback_send_fires_rx_cb);
     RUN_TEST(test_loopback_rssi_is_zero);
     RUN_TEST(test_loopback_set_channel_ok);
-    RUN_TEST(test_send_before_init_fails);
     RUN_TEST(test_loopback_multiple_sends);
     RUN_TEST(test_loopback_driver_name);
     return UNITY_END();

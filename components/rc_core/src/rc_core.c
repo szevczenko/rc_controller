@@ -35,6 +35,11 @@ void rc_core_tick(uint32_t now_ms)
         if ((now_ms - s_ctx.last_packet_ms) >= s_ctx.timeout_ms) {
             s_ctx.state = RC_STATE_FAILSAFE;
         }
+    } else if (s_ctx.state == RC_STATE_TIMEOUT) {
+        /* Never received a packet — enter failsafe after timeout from init. */
+        if (s_ctx.initialized && now_ms >= s_ctx.timeout_ms) {
+            s_ctx.state = RC_STATE_FAILSAFE;
+        }
     }
 }
 
@@ -158,13 +163,15 @@ void rc_link_stats_update(rc_link_stats_t *stats, int rssi,
         stats->packets_rx++;
     }
 
+    /* Rolling window link quality: track recent loss in a simple EWMA.
+     * lq = lq * (W-1)/W + new_sample * 1/W where sample = 0 (loss) or 100 (ok) */
+    uint8_t sample = packet_lost ? 0 : 100;
     uint32_t total = stats->packets_rx + stats->packets_lost;
-    if (total == 0) {
-        stats->link_quality = 0;
+    if (total <= 1) {
+        stats->link_quality = sample;
     } else {
-        uint32_t window = total < LQ_WINDOW ? total : LQ_WINDOW;
-        uint32_t lost_in_window = stats->packets_lost < window ? stats->packets_lost : window;
-        stats->link_quality = (uint8_t)((window - lost_in_window) * 100 / window);
+        uint32_t w = total < LQ_WINDOW ? total : LQ_WINDOW;
+        stats->link_quality = (uint8_t)(((uint32_t)stats->link_quality * (w - 1) + sample) / w);
     }
 }
 

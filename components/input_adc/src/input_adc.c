@@ -68,7 +68,11 @@ uint16_t input_adc_read_raw(uint8_t index)
     }
 
     int raw = 0;
-    adc_oneshot_read(s_ctx.handles[unit_idx], s_ctx.channels[index].channel, &raw);
+    esp_err_t err = adc_oneshot_read(s_ctx.handles[unit_idx], s_ctx.channels[index].channel, &raw);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "adc read ch%u failed: %s", index, esp_err_to_name(err));
+        return 0;
+    }
     return (uint16_t)raw;
 }
 
