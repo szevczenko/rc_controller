@@ -112,6 +112,44 @@ void test_decode_null_args(void)
     TEST_ASSERT_EQUAL(ESP_ERR_INVALID_ARG, rc_packet_decode(buf, sizeof(buf), NULL));
 }
 
+/* ── Telemetry (MR-20) ───────────────────────────────────────────────────── */
+
+void test_telemetry_roundtrip(void)
+{
+    rc_telemetry_packet_t tx = {
+        .version      = RC_PROTOCOL_VERSION,
+        .type         = RC_PACKET_TYPE_TELEMETRY,
+        .rssi         = -67,
+        .link_quality = 95,
+        .battery_mv   = 7400,
+        .uptime_ms    = 12345678,
+    };
+    uint8_t buf[RC_TELEMETRY_PACKET_SIZE];
+    int len = rc_telemetry_encode(&tx, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_INT(RC_TELEMETRY_PACKET_SIZE, len);
+
+    rc_telemetry_packet_t rx = {0};
+    TEST_ASSERT_EQUAL(ESP_OK, rc_telemetry_decode(buf, (size_t)len, &rx));
+    TEST_ASSERT_EQUAL_INT8(tx.rssi,         rx.rssi);
+    TEST_ASSERT_EQUAL_UINT8(tx.link_quality, rx.link_quality);
+    TEST_ASSERT_EQUAL_UINT16(tx.battery_mv,  rx.battery_mv);
+    TEST_ASSERT_EQUAL_UINT32(tx.uptime_ms,   rx.uptime_ms);
+}
+
+void test_telemetry_crc_detected(void)
+{
+    rc_telemetry_packet_t tx = {
+        .version = RC_PROTOCOL_VERSION,
+        .type    = RC_PACKET_TYPE_TELEMETRY,
+        .rssi    = -50,
+    };
+    uint8_t buf[RC_TELEMETRY_PACKET_SIZE];
+    rc_telemetry_encode(&tx, buf, sizeof(buf));
+    buf[2] ^= 0xFF;
+    rc_telemetry_packet_t rx;
+    TEST_ASSERT_EQUAL(ESP_ERR_INVALID_CRC, rc_telemetry_decode(buf, sizeof(buf), &rx));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -124,5 +162,7 @@ int main(void)
     RUN_TEST(test_max_channels);
     RUN_TEST(test_encode_null_args);
     RUN_TEST(test_decode_null_args);
+    RUN_TEST(test_telemetry_roundtrip);
+    RUN_TEST(test_telemetry_crc_detected);
     return UNITY_END();
 }
