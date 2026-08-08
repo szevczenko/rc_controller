@@ -1,0 +1,34 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: ${{ matrix.project }} / ${{ matrix.idf_target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: transmitter
+            idf_target: esp32s3
+          - project: receiver
+            idf_target: esp32
+          - project: receiver
+            idf_target: esp32s3
+          - project: receiver
+            idf_target: esp32c6
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build ${{ matrix.project }} for ${{ matrix.idf_target }}
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5.4
+          target: ${{ matrix.idf_target }}
+          path: ${{ matrix.project }}
