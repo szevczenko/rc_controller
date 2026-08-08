@@ -7,6 +7,23 @@ on:
     branches: [main]
 
 jobs:
+  test:
+    name: Host unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure
+        run: cmake -B test/build -S test/
+
+      - name: Build
+        run: cmake --build test/build
+
+      - name: Run tests
+        run: ctest --test-dir test/build --output-on-failure
+
   build:
     name: ${{ matrix.project }} / ${{ matrix.idf_target }}
     runs-on: ubuntu-latest
@@ -25,6 +42,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Build ${{ matrix.project }} for ${{ matrix.idf_target }}
         uses: espressif/esp-idf-ci-action@v1
