@@ -16,7 +16,7 @@ jobs:
           submodules: recursive
 
       - name: Run Unity tests
-        run: make -C test/
+        run: make -C test/ test
 
   build:
     name: ${{ matrix.project }} / ${{ matrix.idf_target }}
