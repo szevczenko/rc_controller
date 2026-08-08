@@ -3,10 +3,11 @@ CFLAGS  := -std=c11 -Wall -Wextra -g \
             -Istubs \
             -Iunity/src \
             -I../components/rc_protocol/include \
-            -I../components/rc_core/include
+            -I../components/rc_core/include \
+            -I../components/radio/include
 
 UNITY_SRC := unity/src/unity.c
-TESTS     := test_rc_protocol test_rc_core
+TESTS     := test_rc_protocol test_rc_core test_radio
 
 .PHONY: all test clean
 
@@ -23,6 +24,12 @@ test_rc_protocol: test_rc_protocol.c \
 test_rc_core: test_rc_core.c \
               ../components/rc_core/src/rc_core.c \
               $(UNITY_SRC)
+	$(CC) $(CFLAGS) -o $@ $^
+
+test_radio: test_radio.c \
+            ../components/radio/src/radio.c \
+            ../components/radio/src/radio_loopback.c \
+            $(UNITY_SRC)
 	$(CC) $(CFLAGS) -o $@ $^
 
 clean:

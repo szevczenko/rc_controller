@@ -29,3 +29,4 @@ main/build/
 # Host test binaries (no extension = compiled output, not source)
 test/test_rc_protocol
 test/test_rc_core
+test/test_radio

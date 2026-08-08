@@ -22,3 +22,19 @@ esp_err_t radio_send(const uint8_t *data, size_t len)
     }
     return s_driver->send(data, len);
 }
+
+esp_err_t radio_set_channel(uint8_t channel)
+{
+    if (!s_driver || !s_driver->set_channel) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    return s_driver->set_channel(channel);
+}
+
+int radio_get_rssi(void)
+{
+    if (!s_driver || !s_driver->get_rssi) {
+        return 0;
+    }
+    return s_driver->get_rssi();
+}
