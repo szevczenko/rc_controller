@@ -15,8 +15,14 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Run Unity tests
-        run: make -C test/ test
+      - name: Configure
+        run: cmake -B test/build -S test/
+
+      - name: Build
+        run: cmake --build test/build
+
+      - name: Run tests
+        run: ctest --test-dir test/build --output-on-failure
 
   build:
     name: ${{ matrix.project }} / ${{ matrix.idf_target }}

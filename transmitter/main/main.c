@@ -96,6 +96,8 @@ void app_main(void)
     }
 
     rc_core_channel_config_t dz_cfg = {.deadzone = 30};
+    /* expo 20 = mild curve, 0 = linear; load from NVS in future MR */
+    const uint8_t expo = 20;
 
     while (1) {
         uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000);
@@ -103,8 +105,12 @@ void app_main(void)
         uint16_t thr_raw = input_adc_read_raw(CH_THROTTLE);
         uint16_t str_raw = input_adc_read_raw(CH_STEERING);
 
-        int16_t thr = rc_core_apply_deadzone(rc_core_normalize(thr_raw, &rc_cal[0]), &dz_cfg);
-        int16_t str = rc_core_apply_deadzone(rc_core_normalize(str_raw, &rc_cal[1]), &dz_cfg);
+        int16_t thr = rc_core_apply_expo(
+                          rc_core_apply_deadzone(rc_core_normalize(thr_raw, &rc_cal[0]), &dz_cfg),
+                          expo);
+        int16_t str = rc_core_apply_expo(
+                          rc_core_apply_deadzone(rc_core_normalize(str_raw, &rc_cal[1]), &dz_cfg),
+                          expo);
 
         rc_channel_state_t ch_state = {
             .channel_count = CH_COUNT,
