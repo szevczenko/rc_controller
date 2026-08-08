@@ -7,6 +7,17 @@ on:
     branches: [main]
 
 jobs:
+  test:
+    name: Host unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Run Unity tests
+        run: make -C test/
+
   build:
     name: ${{ matrix.project }} / ${{ matrix.idf_target }}
     runs-on: ubuntu-latest
@@ -25,6 +36,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Build ${{ matrix.project }} for ${{ matrix.idf_target }}
         uses: espressif/esp-idf-ci-action@v1
